@@ -19,6 +19,8 @@ import { ChordStrip, NoteMeter, PianoRoll, SettingsPanel } from '@/components/se
 import { Badge, Button, Card, Field, Notice, PageHeader, Select, Slider } from '@/components/ui';
 import { peekEngine } from '@/lib/audio/engine';
 import { createListener, MIC_MESSAGES, type Listener } from '@/lib/audio/mic';
+import { askClaude } from '@/lib/askClaude';
+import { browserStorage, cleanKey, forgetKey, loadKey, saveKey } from '@/lib/claudeKey';
 import type { CoachAdvice, CoachRequest } from '@/lib/coachPrompt';
 import { useElapsed, useHeardBeat } from '@/lib/hooks';
 import { scaleMarks } from '@/lib/marks';
@@ -400,23 +402,34 @@ function CoachReport({ result, onAgain }: { result: Result; onAgain: (s: JamSett
 }
 
 function ClaudeCoach({ result }: { result: Result }) {
-  const [available, setAvailable] = useState<boolean | null>(null);
+  // The player's own Anthropic key, kept in this browser only (lib/claudeKey).
+  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const [keyNote, setKeyNote] = useState('');
   const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [advice, setAdvice] = useState<CoachAdvice | null>(null);
   const [message, setMessage] = useState('');
-  useEffect(() => {
-    let alive = true;
-    fetch('/api/coach')
-      .then((r) => r.json() as Promise<{ available?: boolean }>)
-      .then((j) => alive && setAvailable(!!j.available))
-      .catch(() => alive && setAvailable(false));
-    return () => {
-      alive = false;
-    };
-  }, []);
+  useEffect(() => setApiKey(loadKey(browserStorage())), []);
   const { settings, assessment, boxes } = result;
   const groove = getGroove(settings.grooveId);
+  const keepDraftKey = () => {
+    const key = cleanKey(draft);
+    if (!key) {
+      setKeyNote('That doesn’t look like an Anthropic API key. Keys start with sk-ant-.');
+      return;
+    }
+    setKeyNote(saveKey(browserStorage(), key) ? '' : 'This browser blocked saving, so the key will be forgotten when you leave this page.');
+    setApiKey(key);
+    setDraft('');
+    setState('idle');
+  };
+  const forget = () => {
+    forgetKey(browserStorage());
+    setApiKey(null);
+    setKeyNote('');
+  };
   const ask = async () => {
+    if (!apiKey) return;
     setState('loading');
     const body: CoachRequest = {
       groove: settings.grooveId,
@@ -431,20 +444,16 @@ function ClaudeCoach({ result }: { result: Result }) {
       boxes: boxes ? { box1Share: boxes.box1Share, boxesUsed: boxes.boxesUsed, lowestFret: boxes.lowestFret, highestFret: boxes.highestFret, advice: boxes.advice } : null,
       opening: result.notes.slice(0, 32).map((n) => ({ note: midiName(n.midi).replace(/-?\d+$/, ''), beat: Math.round(n.onsetBeat * 4) / 4, beats: Math.round(n.durationBeats * 4) / 4 })),
     };
-    try {
-      const r = await fetch('/api/coach', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-      const j = (await r.json()) as { advice?: CoachAdvice; message?: string };
-      if (!r.ok || !j.advice) {
-        setMessage(j.message ?? 'Claude could not answer right now. Try again in a minute.');
-        setState('error');
-        return;
-      }
-      setAdvice(j.advice);
+    const answer = await askClaude(body, apiKey);
+    if (answer.ok) {
+      setAdvice(answer.advice);
       setState('done');
-    } catch {
-      setMessage('No connection to the app server. Check that it is running and try again.');
-      setState('error');
+      return;
     }
+    setMessage(answer.message);
+    setState('error');
+    // A refused key: show the key field again so a new one can be pasted.
+    if (answer.badKey) setApiKey(null);
   };
 
   return (
@@ -456,16 +465,39 @@ function ClaudeCoach({ result }: { result: Result }) {
       }
       subtitle="A written lesson from these numbers, with a drill and a next session."
       actions={
-        available && state !== 'done' ? (
+        apiKey && state !== 'done' ? (
           <Button variant="primary" size="sm" onClick={() => void ask()} disabled={state === 'loading'}>
             {state === 'loading' ? 'Thinking…' : 'Ask Claude'}
           </Button>
         ) : null
       }
     >
-      {available === false && (
-        <p className="text-sm leading-relaxed text-muted">
-          Written feedback is off on this server. To turn it on, put <code className="rounded bg-white/5 px-1 font-mono text-xs">ANTHROPIC_API_KEY</code> in <code className="rounded bg-white/5 px-1 font-mono text-xs">apps/web/.env.local</code> and restart the app. Everything else in this report is computed on your device and works without it.
+      {!apiKey && state !== 'done' && (
+        <form
+          className="grid gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            keepDraftKey();
+          }}
+        >
+          <p className="text-sm leading-relaxed text-muted">Paste your Anthropic API key to get a written lesson from these numbers. It is saved only in this browser and sent only to Anthropic.</p>
+          <div className="flex flex-wrap items-end gap-2">
+            <Field label="Anthropic API key" className="min-w-0 flex-1">
+              {(id) => <input id={id} type="password" value={draft} onChange={(e) => setDraft(e.target.value)} autoComplete="off" spellCheck={false} placeholder="sk-ant-…" className="h-10 w-full rounded-xl border border-line bg-surface/80 px-3 font-mono text-sm text-ink" />}
+            </Field>
+            <Button type="submit" variant="primary" disabled={!draft.trim()}>
+              Save key
+            </Button>
+          </div>
+        </form>
+      )}
+      {keyNote && <Notice tone="warn">{keyNote}</Notice>}
+      {apiKey && state !== 'done' && (
+        <p className="text-xs text-faint">
+          Using your Anthropic API key.{' '}
+          <button type="button" onClick={forget} className="cursor-pointer underline underline-offset-2 hover:text-ink">
+            Forget key
+          </button>
         </p>
       )}
       {state === 'error' && <Notice tone="error">{message}</Notice>}

@@ -30,8 +30,10 @@ describe('Claude coach request', () => {
     const body = buildCoachRequest(request, 'claude-haiku-5-5');
     assert.equal(body.model, 'claude-haiku-5-5');
     assert.deepEqual(body.tool_choice, { type: 'tool', name: COACH_TOOL.name });
-    assert.match(body.messages[0].content, /Chord tones on beats 1 and 3: 0.31/);
-    assert.match(body.messages[0].content, /82% in pentatonic box 1/);
+    const content = body.messages[0].content;
+    assert.equal(typeof content, 'string');
+    assert.match(content as string, /Chord tones on beats 1 and 3: 0.31/);
+    assert.match(content as string, /82% in pentatonic box 1/);
     assert.ok(!JSON.stringify(body).includes('x-api-key'));
   });
   it('rejects malformed input', () => {

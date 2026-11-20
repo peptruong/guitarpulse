@@ -2,6 +2,7 @@
  * Claude coach feedback: request validation, the Messages API body, and parsing the reply.
  * The model answers through a forced tool call, so the reply is structured JSON we validate.
  */
+import type Anthropic from '@anthropic-ai/sdk';
 import * as z from 'zod';
 import { GROOVES } from '@guitarpulse/core/grooves';
 
@@ -35,7 +36,7 @@ export const CoachAdviceSchema = z.object({
 });
 export type CoachAdvice = z.infer<typeof CoachAdviceSchema>;
 
-export const COACH_TOOL = {
+export const COACH_TOOL: Anthropic.Tool = {
   name: 'coach_feedback',
   description: 'Give the guitarist feedback on one improvisation session and set up the next one.',
   input_schema: {
@@ -65,7 +66,7 @@ export const COACH_TOOL = {
     },
     required: ['headline', 'strengths', 'fixes', 'next_session'],
   },
-} as const;
+};
 
 const SYSTEM = `You are the improvisation coach inside GuitarPulse, a guitar practice app.
 You receive measurements from one session where the player improvised over a backing track while the app listened.
@@ -77,7 +78,7 @@ Rules:
 - next_session.groove must be one of the listed groove ids; choose a tempo the player can manage (slower if timing spread is high).
 Answer only by calling the coach_feedback tool.`;
 
-export function buildCoachRequest(data: CoachRequest, model = DEFAULT_COACH_MODEL) {
+export function buildCoachRequest(data: CoachRequest, model = DEFAULT_COACH_MODEL): Anthropic.MessageCreateParamsNonStreaming {
   const lines = [
     `Backing track: ${data.grooveName} (${data.groove}) in ${data.key}, ${data.bpm} BPM; scale shown: ${data.scale}.`,
     `Session length: ${data.minutes} minutes, ${data.noteCount} notes detected.`,
@@ -91,7 +92,9 @@ export function buildCoachRequest(data: CoachRequest, model = DEFAULT_COACH_MODE
   lines.push('', `Groove ids you may suggest: ${GROOVES.map((g) => g.id).join(', ')}.`);
   return {
     model,
-    max_tokens: 900,
+    // Claude Haiku 5.5 counts the same text as more tokens than older models; a cut-off tool
+    // call can't be parsed, so leave plenty of room (it is a cap, not a charge).
+    max_tokens: 4096,
     system: SYSTEM,
     tools: [COACH_TOOL],
     tool_choice: { type: 'tool', name: COACH_TOOL.name },
