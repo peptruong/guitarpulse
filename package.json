@@ -1,0 +1,15 @@
+{
+  "name": "guitarpulse",
+  "private": true,
+  "version": "1.0.0",
+  "description": "GuitarPulse: AI guitar improvisation app, shared music engine and Claude MCP connector",
+  "workspaces": ["packages/core", "packages/mcp-server", "apps/web"],
+  "scripts": {
+    "build": "npm run build -w @guitarpulse/core && npm run build -w guitarpulse-mcp-server && npm run build -w @guitarpulse/web",
+    "test": "npm run test -w @guitarpulse/core && npm run test -w @guitarpulse/web",
+    "validate:licks": "npm run validate:licks -w @guitarpulse/core",
+    "smoke": "npm run smoke -w guitarpulse-mcp-server",
+    "dev": "npm run build -w @guitarpulse/core && npm run dev -w @guitarpulse/web"
+  },
+  "engines": { "node": ">=20.3" }
+}

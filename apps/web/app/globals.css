@@ -1,0 +1,97 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-bg: #09090b;
+  --color-surface: #0f172a;
+  --color-elevated: rgb(30 41 59 / 0.6);
+  --color-line: rgb(148 163 184 / 0.15);
+  --color-line-strong: rgb(148 163 184 / 0.3);
+  --color-ink: #f1f5f9;
+  --color-muted: #94a3b8;
+  --color-faint: #64748b;
+  --color-accent: #22d3ee;
+  --color-accent-ink: #042f37;
+  --color-warm: #f59e0b;
+  --color-good: #34d399;
+  --color-bad: #fb7185;
+  --color-root: #e69f00;
+  --color-third: #56b4e9;
+  --color-fifth: #009e73;
+  --color-seventh: #cc79a7;
+  --color-ext: #d55e00;
+  --color-other: #f0e442;
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --animate-pulse-ring: pulse-ring 1.6s ease-out infinite;
+  --animate-rise: rise 0.35s ease-out both;
+
+  @keyframes pulse-ring {
+    0% {
+      box-shadow: 0 0 0 0 rgb(34 211 238 / 0.45);
+    }
+    100% {
+      box-shadow: 0 0 0 14px rgb(34 211 238 / 0);
+    }
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv11', 'ss01';
+    background-image:
+      radial-gradient(60rem 40rem at 85% -10%, rgb(34 211 238 / 0.07), transparent 60%),
+      radial-gradient(50rem 36rem at -10% 110%, rgb(245 158 11 / 0.05), transparent 60%);
+    background-attachment: fixed;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  ::selection {
+    background: rgb(34 211 238 / 0.35);
+  }
+  input[type='range'] {
+    accent-color: var(--color-accent);
+  }
+}
+
+@layer components {
+  .glass {
+    background: linear-gradient(180deg, rgb(30 41 59 / 0.55), rgb(15 23 42 / 0.55));
+    border: 1px solid var(--color-line);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

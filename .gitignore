@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+.env
+.env.local
+apps/web/public/vendor/
+packages/core/.scratch/
+apps/web/out/
