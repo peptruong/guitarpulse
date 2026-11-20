@@ -14,6 +14,7 @@ import { ChordStrip, CopyButton, Mixer, PlayButton, SettingsPanel } from '@/comp
 import { Badge, Button, Card, Field, Notice, PageHeader, Segmented, Slider, Toggle } from '@/components/ui';
 import { StretchPlayer } from '@/lib/audio/stretch';
 import { peekEngine } from '@/lib/audio/engine';
+import { absoluteUrl } from '@/lib/basePath';
 import { useHeardBeat } from '@/lib/hooks';
 import { scaleMarks } from '@/lib/marks';
 import { addSession } from '@guitarpulse/core/progress';
@@ -192,7 +193,7 @@ function ShareLink({ settings }: { settings: JamSettings }) {
   const [origin, setOrigin] = useState('');
   useEffect(() => setOrigin(window.location.origin), []);
   if (!origin) return null;
-  const href = `${origin}${linkFor('studio', settings).replace('/studio?', '/jam?')}`;
+  const href = absoluteUrl(origin, linkFor('studio', settings).replace('/studio?', '/jam/?'));
   return (
     <div className="flex items-center justify-between gap-2 pt-1">
       <span className="text-xs text-muted">Share this exact track</span>

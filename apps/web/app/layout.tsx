@@ -10,6 +10,8 @@ export const metadata: Metadata = {
   title: { default: 'GuitarPulse', template: '%s · GuitarPulse' },
   description: 'Learn to improvise on guitar: backing tracks in every style, every scale on the neck, licks, a coach that listens, trading fours and ear training.',
   applicationName: 'GuitarPulse',
+  // Static hosts can't send a Referrer-Policy header, so the page sets it.
+  referrer: 'strict-origin-when-cross-origin',
 };
 
 export const viewport: Viewport = {

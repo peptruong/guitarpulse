@@ -1,21 +1,21 @@
 import type { NextConfig } from 'next';
 
-const securityHeaders = [
-  { key: 'X-Content-Type-Options', value: 'nosniff' },
-  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-  { key: 'X-Frame-Options', value: 'DENY' },
-  // The coach needs the microphone on this origin only; nothing needs the camera or location.
-  { key: 'Permissions-Policy', value: 'microphone=(self), camera=(), geolocation=()' },
-];
+// GitHub Pages serves the app from /<repo>/, and the deploy workflow passes that prefix in.
+// Normalised the same way as lib/basePath.ts: '' or '/seg', with no trailing slash.
+const base = (process.env.NEXT_PUBLIC_BASE_PATH ?? '').replace(/^\/+|\/+$/g, '');
 
 const nextConfig: NextConfig = {
+  // Plain files only: everything runs in the browser, so any static host can serve the app.
+  output: 'export',
+  basePath: base ? `/${base}` : '',
+  // Each page becomes a folder (coach/index.html). Next also writes navigation data into coach/,
+  // so without this a coach.html and a coach/ folder would compete for the same address.
+  trailingSlash: true,
+  images: { unoptimized: true },
   reactStrictMode: true,
   poweredByHeader: false,
   // Lets the dev server be opened from other devices on the home network (e.g. a phone).
   allowedDevOrigins: ['192.168.2.241'],
-  async headers() {
-    return [{ source: '/:path*', headers: securityHeaders }];
-  },
 };
 
 export default nextConfig;

@@ -81,8 +81,9 @@ export function decodeJam(code: string): { ok: true; session: JamSession } | { o
   }
 }
 
+/** Links to /jam/ with the slash: static hosts serve that page as a folder (jam/index.html). */
 export function jamLink(baseUrl: string, s: JamSession): string {
-  return `${baseUrl.replace(/\/+$/, '')}/jam?s=${encodeJam(s)}`;
+  return `${baseUrl.replace(/\/+$/, '')}/jam/?s=${encodeJam(s)}`;
 }
 
 export function describeJam(s: JamSession): string {

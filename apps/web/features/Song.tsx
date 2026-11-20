@@ -12,6 +12,7 @@ import { useAnnounce, useAudio, useProgress } from '@/components/Providers';
 import { ChordStrip, CopyButton, GrooveOptions, PlayButton } from '@/components/session';
 import { Badge, Card, Field, Notice, PageHeader, Select, Slider } from '@/components/ui';
 import { peekEngine } from '@/lib/audio/engine';
+import { absoluteUrl } from '@/lib/basePath';
 import { useHeardBeat } from '@/lib/hooks';
 import { scaleMarks } from '@/lib/marks';
 import { newSessionId } from '@/lib/progressStore';
@@ -116,7 +117,7 @@ export function Song() {
 
   const [origin, setOrigin] = useState('');
   useEffect(() => setOrigin(window.location.origin), []);
-  const share = song && chart.length <= 600 && origin ? `${origin}/jam?s=${encodeJam({ v: 1, mode: 'song', chart, groove: grooveId, bpm, ...(keyChoice !== 'detect' ? { key: keyChoice } : {}) })}` : null;
+  const share = song && chart.length <= 600 && origin ? absoluteUrl(origin, `/jam/?s=${encodeJam({ v: 1, mode: 'song', chart, groove: grooveId, bpm, ...(keyChoice !== 'detect' ? { key: keyChoice } : {}) })}`) : null;
 
   return (
     <>

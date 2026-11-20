@@ -171,10 +171,15 @@ describe('jam links', () => {
   const jam: JamSession = { v: 1, mode: 'trade', title: 'Điệu Bắc jam ♪', groove: 'vietnamese-folk', key: 'G', bpm: 84, scale: 'dieu-bac', licks: ['dieu-bac-1'], focus: 'Land on Xang (C) at the end of each answer.' };
   it('round-trips through a URL, Vietnamese text included', () => {
     const link = jamLink('https://guitarpulse.app/', jam);
-    assert.match(link, /^https:\/\/guitarpulse\.app\/jam\?s=[A-Za-z0-9_-]+$/);
+    // The page is a folder (jam/index.html) on static hosts, so the link goes straight to it.
+    assert.match(link, /^https:\/\/guitarpulse\.app\/jam\/\?s=[A-Za-z0-9_-]+$/);
     const decoded = decodeJam(new URL(link).searchParams.get('s')!);
     assert.deepEqual(decoded, { ok: true, session: jam });
     assert.equal(encodeJam(jam).includes('='), false);
+  });
+  it('keeps the sub-path of an app served from a folder, like GitHub Pages', () => {
+    assert.match(jamLink('https://example.github.io/guitarpulse', jam), /^https:\/\/example\.github\.io\/guitarpulse\/jam\/\?s=/);
+    assert.match(jamLink('https://example.github.io/guitarpulse/', jam), /^https:\/\/example\.github\.io\/guitarpulse\/jam\/\?s=/);
   });
   it('explains what is wrong with a bad link', () => {
     const bad = decodeJam('not-a-real-link');

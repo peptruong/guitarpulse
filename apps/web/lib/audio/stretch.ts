@@ -2,10 +2,11 @@
  * Your own recordings at any speed or key: Signalsmith Stretch changes tempo and pitch
  * independently (bug 1: resampling would have changed both together).
  */
+import { withBase } from '@/lib/basePath';
 import type { StretchFactory, StretchNode } from '@/types/signalsmith-stretch';
 import type { Engine } from './engine';
 
-const STRETCH_URL = '/vendor/signalsmith-stretch-1.3.2.mjs';
+const STRETCH_URL = withBase('/vendor/signalsmith-stretch-1.3.2.mjs');
 let factoryPromise: Promise<StretchFactory> | null = null;
 
 function loadFactory(): Promise<StretchFactory> {
