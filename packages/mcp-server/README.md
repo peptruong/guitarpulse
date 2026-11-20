@@ -23,7 +23,7 @@ All tools are read-only: nothing is stored on the server, and a jam session live
 
 ## Jam links
 
-`guitarpulse_create_jam_session` and `guitarpulse_song_to_practice` return links like `https://your-app/jam?s=<code>`. The code is the session itself (validated JSON, base64url), so links work without accounts or a database and can be shared. Set the app address with an environment variable:
+`guitarpulse_create_jam_session` and `guitarpulse_song_to_practice` return links like `https://your-app/jam/?s=<code>`. The code is the session itself (validated JSON, base64url), so links work without accounts or a database and can be shared. Set the app address with an environment variable:
 
 ```bash
 GUITARPULSE_APP_URL=https://guitarpulse.example.com node dist/index.js
