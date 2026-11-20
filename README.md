@@ -17,7 +17,15 @@ packages/core        the music engine: theory, grooves, licks, audio analysis, c
 packages/mcp-server  the Claude connector (10 tools), built on the same engine
 ```
 
-## Run it
+## Use it online
+
+The app builds to plain files, so GitHub Pages hosts it for free with no server to run. Every push to `main` runs `.github/workflows/deploy.yml`. The workflow runs the tests, builds the site and publishes it to `https://<your-user>.github.io/<repo>/`. If a test fails, nothing is published and the site keeps its last working version.
+
+One-time setup: create the repo on GitHub and, in the repo, open **Settings → Pages** and set **Source** to **GitHub Actions**. Then push this code to `main`. If you pushed before switching the source, run the workflow again from the **Actions** tab.
+
+The site is served over https, which browsers require before they allow the microphone, so the coach works on your phone too.
+
+## Run it on your computer
 
 Requires Node.js 20.3 or newer.
 
@@ -26,21 +34,21 @@ npm install
 npm run dev            # builds the engine, then serves the app on http://localhost:3000
 ```
 
-For a production build, use `npm run build`, then `npm start -w @guitarpulse/web`.
+`npm run build` writes the site as plain files to `apps/web/out`, and `npm start -w @guitarpulse/web` previews them.
 
 Use headphones for the backing track, so the microphone hears only your guitar. An audio interface works best; a laptop microphone also works.
 
 ### Optional: Claude's written coaching
 
-Copy `apps/web/.env.example` to `apps/web/.env.local`, add your `ANTHROPIC_API_KEY`, then restart the app.
+After a coach session, the "Claude's take" card in the report asks for your Anthropic API key. Paste it once. It is saved only in that browser and sent only to Anthropic, straight from the page. **Forget key** removes it.
 
-The coach report then gets an "Ask Claude" button. It sends only the session's numbers, never audio, and returns a short lesson with drills and a ready-made next session. The key stays on the server. Without a key, everything else works.
+"Ask Claude" then sends only the session's numbers, never audio, and returns a short lesson with drills and a ready-made next session. Without a key, everything else works.
 
 ### Optional: the Claude connector
 
 `packages/mcp-server/README.md` explains how to add it to Claude Code or Claude Desktop.
 
-Ask "set me up a trading-fours jam over city pop in D" and Claude replies with a link that opens the app ready to play. The links point to `GUITARPULSE_APP_URL` (default `http://localhost:3000`).
+Ask "set me up a trading-fours jam over city pop in D" and Claude replies with a link that opens the app ready to play. The links point to `GUITARPULSE_APP_URL` (default `http://localhost:3000`). Set it to your GitHub Pages address, such as `https://<your-user>.github.io/guitarpulse`, and the links open the online app.
 
 ## The four bugs, fixed
 
@@ -102,7 +110,7 @@ The app also has:
   - Bends and vibrato stay one note.
 - **Backing tracks** are written as data: a drum grid, bass tokens, a keys pattern and Roman-numeral progressions. They are rendered to beat-timed events and played by synthesized instruments, so nothing has to download.
 - **Your data stays on the device.** Progress is stored in IndexedDB. If storage is blocked, the app keeps progress in memory and says so. You can export your progress and merge it on another device.
-- **The server holds the API key.** The `/api/coach` route accepts only validated measurements and forces Claude to answer through a tool schema. It also has a timeout, a rate limit and clear error messages.
+- **No server.** The app builds to static files. Claude's coaching runs in the browser with your own API key, which stays in that browser. The request is validated before it is sent, Claude answers through a tool schema, and each failure (refused key, no credit, busy, timeout, offline) gets a clear message.
 - **Design.** The theme is dark (zinc-950 background, slate surfaces) with glass cards and one cyan accent.
   - **Degrees use the Okabe-Ito colour-blind-safe colours plus a shape each:** root square, 3rd circle, 5th diamond, 7th triangle, extensions hexagon. Colour is never the only cue.
   - **Fretboard:** vertical on phones, with a left-handed mode. You can move around it with the arrow keys and play a note with Enter.

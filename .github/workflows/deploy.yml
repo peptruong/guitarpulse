@@ -1,0 +1,64 @@
+# Builds the web app as plain files and publishes it to GitHub Pages on every push to main.
+# One-time setup in the repo: Settings → Pages → Build and deployment → Source: GitHub Actions.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time. A newer push waits instead of cancelling one that is publishing.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  NEXT_TELEMETRY_DISABLED: 1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - id: pages
+        uses: actions/configure-pages@v6
+
+      - run: npm ci
+
+      - name: Build the music engine
+        run: npm run build -w @guitarpulse/core
+
+      # A failing test stops here, so the live site keeps its last working version.
+      - name: Test
+        run: npm test
+
+      - name: Build the site
+        run: npm run build -w @guitarpulse/web
+        env:
+          # The address prefix, such as /guitarpulse for https://<user>.github.io/guitarpulse/
+          NEXT_PUBLIC_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: apps/web/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

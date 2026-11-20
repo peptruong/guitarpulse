@@ -29,7 +29,7 @@ All tools are read-only: nothing is stored on the server, and a jam session live
 GUITARPULSE_APP_URL=https://guitarpulse.example.com node dist/index.js
 ```
 
-It defaults to `http://localhost:3000`, which is where `npm run dev` serves the web app.
+It defaults to `http://localhost:3000`, which is where `npm run dev` serves the web app. To have links open the online app instead, set it to your GitHub Pages address, such as `https://<your-user>.github.io/guitarpulse`.
 
 ## Install and run
 
