@@ -8,6 +8,7 @@
 import type * as ToneType from 'tone';
 import type { RenderedTrack, TrackEvent } from '@guitarpulse/core/grooves';
 import { DrumKit } from './drums';
+import { startTime } from './timing';
 
 type ToneLib = typeof ToneType;
 
@@ -305,7 +306,8 @@ export class Engine {
     }
   }
 
-  private playLead(n: LeadNote, time: number) {
+  private playLead(n: LeadNote, scheduled: number) {
+    const time = startTime(scheduled, this.ctx.currentTime);
     const v = this.leads[this.leadNext];
     this.leadNext = (this.leadNext + 1) % this.leads.length;
     const spb = 60 / this.T.getTransport().bpm.value;
