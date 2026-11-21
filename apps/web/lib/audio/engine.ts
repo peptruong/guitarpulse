@@ -191,7 +191,7 @@ export class Engine {
       tr.loop = false;
     }
     for (let b = 0; b < this.offsetBeats; b++) {
-      tr.schedule((time) => this.click.triggerAttackRelease(b % 4 === 0 ? 1760 : 1320, 0.03, time, b % 4 === 0 ? 1 : 0.7), this.tick(b));
+      tr.schedule((time) => this.play(this.click, time, (t) => this.click.triggerAttackRelease(b % 4 === 0 ? 1760 : 1320, 0.03, t, b % 4 === 0 ? 1 : 0.7)), this.tick(b));
     }
     this.emit();
   }
@@ -210,7 +210,7 @@ export class Engine {
   /** A click on every beat of the loop (and an accent on beat 1). */
   addMetronome(beats: number) {
     const tr = this.T.getTransport();
-    for (let b = 0; b < beats; b++) tr.schedule((time) => this.click.triggerAttackRelease(b % 4 === 0 ? 1760 : 1320, 0.03, time, b % 4 === 0 ? 0.9 : 0.55), this.tick(this.offsetBeats + b));
+    for (let b = 0; b < beats; b++) tr.schedule((time) => this.play(this.click, time, (t) => this.click.triggerAttackRelease(b % 4 === 0 ? 1760 : 1320, 0.03, t, b % 4 === 0 ? 0.9 : 0.55)), this.tick(this.offsetBeats + b));
   }
 
   /**
@@ -287,29 +287,52 @@ export class Engine {
     this.T.connect(node, this.buses[bus]);
   }
 
-  private trigger(e: TrackEvent, time: number) {
-    const spb = 60 / this.T.getTransport().bpm.value;
-    const dur = Math.max(0.04, e.duration * spb);
-    switch (e.part) {
-      case 'drums':
-        if (e.inst) this.drums.hit(e.inst, time, e.velocity);
-        break;
-      case 'bass':
-        if (e.midi !== undefined) this.bass.triggerAttackRelease(hz(e.midi), dur * 0.94, time, e.velocity);
-        break;
-      case 'keys':
-        if (e.midis?.length) this.keys.triggerAttackRelease(e.midis.map(hz), dur * 0.95, time, e.velocity * 0.75);
-        break;
-      case 'pad':
-        if (e.midis?.length) this.pad.triggerAttackRelease(e.midis.map(hz), dur, time, e.velocity * 0.6);
-        break;
+  private readonly lastStart = new Map<unknown, number>();
+
+  /**
+   * Starts one transport event on one voice. An event the busy main thread delivers late starts a
+   * moment from now and after the voice's previous start (see startTime). One that still cannot be
+   * scheduled is skipped: the error would otherwise stop Tone.js delivering the rest of the batch.
+   */
+  private play(voice: unknown, scheduled: number, start: (time: number) => void) {
+    const time = startTime(scheduled, this.ctx.currentTime, this.lastStart.get(voice));
+    try {
+      start(time);
+    } catch (err) {
+      console.warn('GuitarPulse skipped a note it could not schedule in time.', err);
     }
+    // Tone.js starts anything already due at the clock's current time, so that is when this voice really started.
+    this.lastStart.set(voice, Math.max(time, this.ctx.currentTime));
+  }
+
+  private trigger(e: TrackEvent, scheduled: number) {
+    this.play(e.part === 'drums' ? `drums:${e.inst}` : e.part, scheduled, (time) => {
+      const spb = 60 / this.T.getTransport().bpm.value;
+      const dur = Math.max(0.04, e.duration * spb);
+      switch (e.part) {
+        case 'drums':
+          if (e.inst) this.drums.hit(e.inst, time, e.velocity);
+          break;
+        case 'bass':
+          if (e.midi !== undefined) this.bass.triggerAttackRelease(hz(e.midi), dur * 0.94, time, e.velocity);
+          break;
+        case 'keys':
+          if (e.midis?.length) this.keys.triggerAttackRelease(e.midis.map(hz), dur * 0.95, time, e.velocity * 0.75);
+          break;
+        case 'pad':
+          if (e.midis?.length) this.pad.triggerAttackRelease(e.midis.map(hz), dur, time, e.velocity * 0.6);
+          break;
+      }
+    });
   }
 
   private playLead(n: LeadNote, scheduled: number) {
-    const time = startTime(scheduled, this.ctx.currentTime);
     const v = this.leads[this.leadNext];
     this.leadNext = (this.leadNext + 1) % this.leads.length;
+    this.play(v, scheduled, (time) => this.leadNote(v, n, time));
+  }
+
+  private leadNote(v: ToneType.MonoSynth, n: LeadNote, time: number) {
     const spb = 60 / this.T.getTransport().bpm.value;
     const dur = Math.max(0.06, n.durationBeats * spb);
     const f = hz(n.midi);

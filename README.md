@@ -119,7 +119,7 @@ The app also has:
 ## Checks
 
 ```bash
-npm test                 # engine (110 tests) and web logic (37 tests)
+npm test                 # engine (110 tests) and web logic (42 tests)
 npm run validate:licks   # every lick parsed by alphaTab, bars add up, every pitch in its scale
 npm run smoke            # starts the Claude connector and calls all 10 tools over stdio
 ```
