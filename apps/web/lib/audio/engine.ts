@@ -8,7 +8,7 @@
 import type * as ToneType from 'tone';
 import type { RenderedTrack, TrackEvent } from '@guitarpulse/core/grooves';
 import { DrumKit } from './drums';
-import { startTime } from './timing';
+import { dropRepeatedTicks, startTime } from './timing';
 
 type ToneLib = typeof ToneType;
 
@@ -191,7 +191,7 @@ export class Engine {
       tr.loop = false;
     }
     for (let b = 0; b < this.offsetBeats; b++) {
-      tr.schedule((time) => this.play(this.click, time, (t) => this.click.triggerAttackRelease(b % 4 === 0 ? 1760 : 1320, 0.03, t, b % 4 === 0 ? 1 : 0.7)), this.tick(b));
+      this.schedule(this.tick(b), (time) => this.play(this.click, time, (t) => this.click.triggerAttackRelease(b % 4 === 0 ? 1760 : 1320, 0.03, t, b % 4 === 0 ? 1 : 0.7)));
     }
     this.emit();
   }
@@ -201,16 +201,24 @@ export class Engine {
     return `${Math.round(transportBeat * this.T.getTransport().PPQ)}i`;
   }
 
+  /**
+   * Puts one event on the transport and returns its id. Each tick plays it once, even when Tone.js
+   * delivers that tick twice (see dropRepeatedTicks). once=true plays it only the first time.
+   */
+  private schedule(at: string, callback: (time: number) => void, once = false): number {
+    const tr = this.T.getTransport();
+    const cb = dropRepeatedTicks(callback);
+    return once ? tr.scheduleOnce(cb, at) : tr.schedule(cb, at);
+  }
+
   /** Schedules a rendered backing track; it repeats with the loop. */
   addBacking(track: RenderedTrack) {
-    const tr = this.T.getTransport();
-    for (const e of track.events) tr.schedule((time) => this.trigger(e, time), this.tick(this.offsetBeats + e.beat));
+    for (const e of track.events) this.schedule(this.tick(this.offsetBeats + e.beat), (time) => this.trigger(e, time));
   }
 
   /** A click on every beat of the loop (and an accent on beat 1). */
   addMetronome(beats: number) {
-    const tr = this.T.getTransport();
-    for (let b = 0; b < beats; b++) tr.schedule((time) => this.play(this.click, time, (t) => this.click.triggerAttackRelease(b % 4 === 0 ? 1760 : 1320, 0.03, t, b % 4 === 0 ? 0.9 : 0.55)), this.tick(this.offsetBeats + b));
+    for (let b = 0; b < beats; b++) this.schedule(this.tick(this.offsetBeats + b), (time) => this.play(this.click, time, (t) => this.click.triggerAttackRelease(b % 4 === 0 ? 1760 : 1320, 0.03, t, b % 4 === 0 ? 0.9 : 0.55)));
   }
 
   /**
@@ -218,13 +226,10 @@ export class Engine {
    * repeat=false plays them once at the next time the transport reaches them (trading answers).
    */
   addLead(notes: LeadNote[], atTrackBeat: number, repeat: boolean): number[] {
-    const tr = this.T.getTransport();
     return notes.map((n) => {
       let pos = atTrackBeat + n.onsetBeat;
       if (!repeat && this.loopBeats) pos = ((pos % this.loopBeats) + this.loopBeats) % this.loopBeats;
-      const at = this.tick(this.offsetBeats + pos);
-      const cb = (time: number) => this.playLead(n, time);
-      return repeat ? tr.schedule(cb, at) : tr.scheduleOnce(cb, at);
+      return this.schedule(this.tick(this.offsetBeats + pos), (time) => this.playLead(n, time), !repeat);
     });
   }
 

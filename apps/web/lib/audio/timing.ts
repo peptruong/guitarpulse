@@ -16,3 +16,21 @@ export function startTime(scheduled: number, now: number, previous?: number): nu
   const t = Math.max(scheduled, now + LATE_MARGIN);
   return previous !== undefined && t <= previous ? previous + MIN_GAP : t;
 }
+
+/** Two deliveries of one event closer together than this are one tick delivered twice. */
+const REPEAT_WINDOW = 0.001;
+
+/**
+ * Wraps the callback of one transport event so each tick plays it once. When one clock update ends
+ * and the next begins, Tone.js can hand the same tick over twice, about 1e-13 s apart: a voice that
+ * plays one note at a time then rejects the second start, and a chord plays doubled. The repeat is
+ * dropped; the event still plays again when the loop comes back to it.
+ */
+export function dropRepeatedTicks(callback: (time: number) => void): (time: number) => void {
+  let last = -Infinity;
+  return (time) => {
+    if (Math.abs(time - last) < REPEAT_WINDOW) return;
+    last = time;
+    callback(time);
+  };
+}
