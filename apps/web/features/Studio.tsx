@@ -10,12 +10,13 @@ import { parseNote, prefersFlats } from '@guitarpulse/core/theory/notes';
 import { findScale } from '@guitarpulse/core/theory/scales';
 import { DegreeLegend, Fretboard } from '@/components/Fretboard';
 import { useAnnounce, useAudio, useProgress } from '@/components/Providers';
-import { ChordStrip, CopyButton, Mixer, PlayButton, SettingsPanel } from '@/components/session';
+import { CopyButton, LiveChordStrip, Mixer, PlayButton, SettingsPanel } from '@/components/session';
 import { Badge, Button, Card, Field, Notice, PageHeader, Segmented, Slider, Toggle } from '@/components/ui';
 import { StretchPlayer } from '@/lib/audio/stretch';
 import { peekEngine } from '@/lib/audio/engine';
 import { absoluteUrl } from '@/lib/basePath';
 import { useHeardBeat } from '@/lib/hooks';
+import { chordPoints, playheadStep } from '@/lib/playhead';
 import { scaleMarks } from '@/lib/marks';
 import { addSession } from '@guitarpulse/core/progress';
 import { newSessionId } from '@/lib/progressStore';
@@ -64,7 +65,9 @@ function GeneratedTracks({ settings, setSettings, lickIds }: { settings: JamSett
   const groove = getGroove(settings.grooveId);
   const chords = useMemo(() => grooveChords(settings), [settings]);
   const loopBeats = useMemo(() => loopLength(chords), [chords]);
-  const beat = useHeardBeat(engine, playing);
+  // Redraw when the chord changes; the chord strip follows the beat by itself (see useHeardBeat).
+  const points = useMemo(() => chordPoints(chords, loopBeats), [chords, loopBeats]);
+  const beat = useHeardBeat(engine, playing, (b) => playheadStep(points, loopBeats, b));
   const current = beat === null || beat < 0 ? null : chordAtBeat(chords, loopBeats, beat);
   const shownChord = colorBy === 'chord' ? (current?.chord.symbol ?? chords[0].symbol) : null;
   const marks = useMemo(() => scaleMarks({ root: settings.key, scale: settings.scale, chord: shownChord, labels }), [settings.key, settings.scale, shownChord, labels]);
@@ -139,7 +142,7 @@ function GeneratedTracks({ settings, setSettings, lickIds }: { settings: JamSett
           subtitle={`${groove.description}. ${groove.instruments}.`}
           actions={<PlayButton playing={playing} onPlay={() => void play()} onStop={stop} />}
         >
-          <ChordStrip chords={chords} loopBeats={loopBeats} beat={beat} />
+          <LiveChordStrip engine={engine} playing={playing} chords={chords} loopBeats={loopBeats} />
           {groove.about && <p className="mt-3 text-sm leading-relaxed text-muted">{groove.about}</p>}
         </Card>
 

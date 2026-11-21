@@ -9,11 +9,12 @@ import { parseChord } from '@guitarpulse/core/theory/chords';
 import { getTuning, parseNote, prefersFlats } from '@guitarpulse/core/theory/notes';
 import { DegreeLegend, Fretboard } from '@/components/Fretboard';
 import { useAnnounce, useAudio, useProgress } from '@/components/Providers';
-import { ChordStrip, CopyButton, GrooveOptions, PlayButton } from '@/components/session';
+import { CopyButton, GrooveOptions, LiveChordStrip, PlayButton } from '@/components/session';
 import { Badge, Card, Field, Notice, PageHeader, Select, Slider } from '@/components/ui';
 import { peekEngine } from '@/lib/audio/engine';
 import { absoluteUrl } from '@/lib/basePath';
 import { useHeardBeat } from '@/lib/hooks';
+import { chordPoints, playheadStep } from '@/lib/playhead';
 import { scaleMarks } from '@/lib/marks';
 import { newSessionId } from '@/lib/progressStore';
 import { canonicalKey, keyRoot, KEYS } from '@/lib/settings';
@@ -61,7 +62,9 @@ export function Song() {
   const song = analysis.ok ? analysis.song : null;
   const chords = useMemo(() => (song ? song.chart.chords.map((c) => ({ symbol: c.symbol, startBeat: c.startBeat, endBeat: c.endBeat })) : []), [song]);
   const loopBeats = song ? song.lengthBeats : 16;
-  const beat = useHeardBeat(engine, playing);
+  // Redraw when the chord changes; the chord strip follows the beat by itself (see useHeardBeat).
+  const points = useMemo(() => chordPoints(chords, loopBeats), [chords, loopBeats]);
+  const beat = useHeardBeat(engine, playing, (b) => playheadStep(points, loopBeats, b));
   const pos = beat === null || beat < 0 ? 0 : beat % loopBeats;
   const currentIndex = Math.max(0, chords.findIndex((c) => pos >= c.startBeat && pos < c.endBeat));
   const current = song?.timeline[currentIndex];
@@ -172,7 +175,7 @@ export function Song() {
                 subtitle={song.named?.about ?? (song.key.alternatives.length ? `Could also be heard in ${song.key.alternatives.slice(0, 2).join(' or ')}.` : undefined)}
                 actions={<PlayButton playing={playing} onPlay={() => void startTrack().then(() => { startedAt.current = Date.now(); announce('Playing your song'); })} onStop={() => { peekEngine()?.stop(); setPlaying(false); logSession(); }} />}
               >
-                <ChordStrip chords={chords} loopBeats={loopBeats} beat={beat} />
+                <LiveChordStrip engine={engine} playing={playing} chords={chords} loopBeats={loopBeats} />
                 <p className="mt-3 text-sm leading-relaxed text-ink">{song.focus}</p>
               </Card>
               {current && (

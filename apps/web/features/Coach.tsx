@@ -15,7 +15,7 @@ import { getTuning, midiName } from '@guitarpulse/core/theory/notes';
 import { findScale } from '@guitarpulse/core/theory/scales';
 import { DegreeLegend, Fretboard, type FretMark } from '@/components/Fretboard';
 import { useAnnounce, useAudio, useProgress } from '@/components/Providers';
-import { ChordStrip, NoteMeter, PianoRoll, SettingsPanel } from '@/components/session';
+import { LiveChordStrip, NoteMeter, PianoRoll, SettingsPanel, type RollNote } from '@/components/session';
 import { Badge, Button, Card, Field, Notice, PageHeader, Select, Slider } from '@/components/ui';
 import { peekEngine } from '@/lib/audio/engine';
 import { createListener, MIC_MESSAGES, type Listener } from '@/lib/audio/mic';
@@ -23,6 +23,7 @@ import { askClaude } from '@/lib/askClaude';
 import { browserStorage, cleanKey, forgetKey, loadKey, saveKey } from '@/lib/claudeKey';
 import type { CoachAdvice, CoachRequest } from '@/lib/coachPrompt';
 import { useElapsed, useHeardBeat } from '@/lib/hooks';
+import { chordPoints, countedStep, replayPoints, replayStep } from '@/lib/playhead';
 import { scaleMarks } from '@/lib/marks';
 import { newSessionId } from '@/lib/progressStore';
 import { fretWindow, replayFrame, sortedForReplay, type ReplayNote } from '@/lib/replay';
@@ -69,7 +70,9 @@ export function Coach() {
   const chords = useMemo(() => grooveChords(settings), [settings]);
   const loopBeats = useMemo(() => loopLength(chords), [chords]);
   const listening = phase === 'listening';
-  const beat = useHeardBeat(engine, listening);
+  // Redraw on each count-in beat and chord change; the chord strip follows the beat by itself (see useHeardBeat).
+  const points = useMemo(() => chordPoints(chords, loopBeats), [chords, loopBeats]);
+  const beat = useHeardBeat(engine, listening, (b) => countedStep(points, loopBeats, b));
   const elapsed = useElapsed(listening ? startedAt.current : null);
   const groove = getGroove(settings.grooveId);
 
@@ -227,7 +230,7 @@ export function Coach() {
           >
             <div className="grid gap-4">
               <NoteMeter midi={meter?.midi ?? null} cents={meter?.cents ?? 0} listening={listening} />
-              <ChordStrip chords={chords} loopBeats={loopBeats} beat={beat} />
+              <LiveChordStrip engine={engine} playing={listening} chords={chords} loopBeats={loopBeats} />
               {listening && beat !== null && beat < 0 && <p className="text-center font-mono text-3xl font-semibold text-accent">{Math.ceil(-beat)}</p>}
               <p className="text-sm text-muted">
                 {listening ? `${noteCount} notes heard.` : 'Tip: use headphones for the backing track so the microphone only hears your guitar.'}
@@ -272,13 +275,23 @@ function fmtMetric(metric: string, value: number | null) {
   return `${value}${unit ? ` ${unit}` : ''}`;
 }
 
+/** The replay's piano roll. Its playhead follows the track every frame, so only the roll redraws that often. */
+function ReplayRoll({ notes, totalBeats, replaying, scrub }: { notes: RollNote[]; totalBeats: number; replaying: boolean; scrub: number }) {
+  const { engine } = useAudio();
+  const heard = useHeardBeat(engine, replaying);
+  return <PianoRoll notes={notes} fromBeat={0} beats={totalBeats} playhead={replaying && heard !== null ? Math.max(0, heard) : scrub} label="Your solo as a piano roll" />;
+}
+
 function CoachReport({ result, onAgain }: { result: Result; onAgain: (s: JamSettings) => void }) {
   const { engine, ensure } = useAudio();
   const [replaying, setReplaying] = useState(false);
   const [scrub, setScrub] = useState(result.totalBeats);
   const replayTimer = useRef<number | null>(null);
-  const heard = useHeardBeat(engine, replaying);
+  // Redraw at note starts and ends and every 1/8 beat; the piano roll's playhead follows the beat by itself.
+  const points = useMemo(() => replayPoints(result.replay, result.totalBeats), [result.replay, result.totalBeats]);
+  const heard = useHeardBeat(engine, replaying, (b) => replayStep(points, b));
   const at = replaying && heard !== null ? Math.max(0, heard) : scrub;
+  const rollNotes = useMemo(() => result.notes.map((n) => ({ ...n, who: 'you' as const })), [result.notes]);
   const cells = useMemo(() => replayFrame(result.replay, at), [result.replay, at]);
   const win = useMemo(() => fretWindow(result.replay), [result.replay]);
   const marks: FretMark[] = cells.map((c) => ({ string: c.string, fret: c.fret, label: String(c.count), role: 'third', heat: c.heat }));
@@ -350,7 +363,7 @@ function CoachReport({ result, onAgain }: { result: Result; onAgain: (s: JamSett
               <Slider label="Replay position in beats" value={Math.round(at)} min={0} max={result.totalBeats} onChange={(v) => setScrub(v)} format={(v) => `bar ${Math.floor(v / 4) + 1}`} disabled={replaying} />
             </div>
             <div className="mt-4">
-              <PianoRoll notes={result.notes.map((n) => ({ ...n, who: 'you' as const }))} fromBeat={0} beats={result.totalBeats} playhead={at} label="Your solo as a piano roll" />
+              <ReplayRoll notes={rollNotes} totalBeats={result.totalBeats} replaying={replaying} scrub={scrub} />
             </div>
           </Card>
           {boxes && (

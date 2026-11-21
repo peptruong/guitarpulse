@@ -1,11 +1,13 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Check, Copy, Pause, Play, Square } from 'lucide-react';
 import type { ChordSpan } from '@guitarpulse/core/coach/assess';
 import { GROOVES, getGroove } from '@guitarpulse/core/grooves';
 import { midiName } from '@guitarpulse/core/theory/notes';
 import { findScale, SCALES, type ScaleFamily } from '@guitarpulse/core/theory/scales';
 import { MIX_PARTS, type Engine, type MixPart } from '@/lib/audio/engine';
+import { useHeardBeat } from '@/lib/hooks';
+import { chordIndexAt } from '@/lib/playhead';
 import { KEYS, type JamSettings } from '@/lib/settings';
 import { Button, cx, Field, Select, Slider } from './ui';
 
@@ -144,13 +146,23 @@ export function PauseIcon() {
 }
 
 /** The chord timeline laid out like a lead sheet: four bars per row, the sounding chord lit. */
+/**
+ * A chord strip that follows the engine by itself. Its progress fill moves every frame, so it redraws
+ * that often, while the page around it only needs to redraw when the chord changes.
+ */
+export function LiveChordStrip({ engine, playing, chords, loopBeats }: { engine: Engine | null; playing: boolean; chords: ChordSpan[]; loopBeats: number }) {
+  const beat = useHeardBeat(engine, playing);
+  return <ChordStrip chords={chords} loopBeats={loopBeats} beat={beat} />;
+}
+
 export function ChordStrip({ chords, loopBeats, beat, onSelect }: { chords: ChordSpan[]; loopBeats: number; beat: number | null; onSelect?: (index: number) => void }) {
+  const active = chordIndexAt(chords, loopBeats, beat);
   const pos = beat === null || beat < 0 ? null : ((beat % loopBeats) + loopBeats) % loopBeats;
   return (
     <ol className="grid gap-1.5" style={{ gridTemplateColumns: 'repeat(8, minmax(0, 1fr))' }} aria-label="Chord timeline">
       {chords.map((c, i) => {
-        const on = pos !== null && pos >= c.startBeat && pos < c.endBeat;
-        const pct = on ? ((pos - c.startBeat) / (c.endBeat - c.startBeat)) * 100 : 0;
+        const on = i === active;
+        const pct = on && pos !== null ? ((pos - c.startBeat) / (c.endBeat - c.startBeat)) * 100 : 0;
         const span = Math.max(1, Math.min(8, Math.round((c.endBeat - c.startBeat) / 2)));
         const startCol = (Math.round(c.startBeat / 2) % 8) + 1;
         return (
@@ -256,20 +268,30 @@ export interface RollNote {
 /** A small piano roll for phrases (trading-fours transcripts, coach replay). */
 export function PianoRoll({ notes, fromBeat, beats, playhead, height = 96, label }: { notes: RollNote[]; fromBeat: number; beats: number; playhead?: number | null; height?: number; label: string }) {
   const w = 640;
-  const lo = notes.length ? Math.min(...notes.map((n) => n.midi)) - 2 : 52;
-  const hi = notes.length ? Math.max(...notes.map((n) => n.midi)) + 2 : 76;
-  const range = Math.max(12, hi - lo);
   const x = (b: number) => ((b - fromBeat) / beats) * w;
-  const y = (m: number) => height - ((m - lo) / range) * (height - 8) - 4;
+  // The grid and notes change only with the phrase. Keeping them between renders lets a moving
+  // playhead redraw just its own line.
+  const phrase = useMemo(() => {
+    const lo = notes.length ? Math.min(...notes.map((n) => n.midi)) - 2 : 52;
+    const hi = notes.length ? Math.max(...notes.map((n) => n.midi)) + 2 : 76;
+    const range = Math.max(12, hi - lo);
+    const xAt = (b: number) => ((b - fromBeat) / beats) * w;
+    const y = (m: number) => height - ((m - lo) / range) * (height - 8) - 4;
+    return (
+      <>
+        <rect width={w} height={height} rx={10} fill="rgb(15 23 42 / 0.6)" />
+        {Array.from({ length: Math.floor(beats / 4) + 1 }, (_, i) => (
+          <line key={i} x1={xAt(fromBeat + i * 4)} x2={xAt(fromBeat + i * 4)} y1={0} y2={height} stroke="rgb(148 163 184 / 0.18)" />
+        ))}
+        {notes.map((n, i) => (
+          <rect key={i} x={xAt(n.onsetBeat)} y={y(n.midi) - 3} width={Math.max(3, xAt(n.onsetBeat + n.durationBeats) - xAt(n.onsetBeat) - 1)} height={6} rx={2} fill={n.who === 'app' ? '#f59e0b' : '#22d3ee'} />
+        ))}
+      </>
+    );
+  }, [notes, fromBeat, beats, height]);
   return (
     <svg viewBox={`0 0 ${w} ${height}`} className="block h-auto w-full" role="img" aria-label={label}>
-      <rect width={w} height={height} rx={10} fill="rgb(15 23 42 / 0.6)" />
-      {Array.from({ length: Math.floor(beats / 4) + 1 }, (_, i) => (
-        <line key={i} x1={x(fromBeat + i * 4)} x2={x(fromBeat + i * 4)} y1={0} y2={height} stroke="rgb(148 163 184 / 0.18)" />
-      ))}
-      {notes.map((n, i) => (
-        <rect key={i} x={x(n.onsetBeat)} y={y(n.midi) - 3} width={Math.max(3, x(n.onsetBeat + n.durationBeats) - x(n.onsetBeat) - 1)} height={6} rx={2} fill={n.who === 'app' ? '#f59e0b' : '#22d3ee'} />
-      ))}
+      {phrase}
       {playhead !== null && playhead !== undefined && playhead >= fromBeat && playhead <= fromBeat + beats && <line x1={x(playhead)} x2={x(playhead)} y1={0} y2={height} stroke="#f8fafc" strokeWidth={1.5} />}
     </svg>
   );
