@@ -20,6 +20,7 @@ import { Badge, Button, Card, cx, Field, Notice, PageHeader, Segmented, Select, 
 import { peekEngine, type LeadNote } from '@/lib/audio/engine';
 import { degreeOf, degreeRole } from '@/lib/degrees';
 import { useHeardBeat, useLatest } from '@/lib/hooks';
+import { playheadPoints, playheadStep, playheadView } from '@/lib/playhead';
 import { canonicalKey, KEYS } from '@/lib/settings';
 
 const STANDARD = getTuning('standard');
@@ -169,10 +170,11 @@ function LickDetail({ base }: { base: Lick }) {
   const scaleDef = findScale(lick.scale);
   const pcs = useMemo(() => (scaleDef ? scalePcs(scaleDef, keyPc) : []), [scaleDef, keyPc]);
   const bpm = Math.round((lick.bpm * speed) / 100);
-  const heard = useHeardBeat(engine, playing);
-  const pos = heard === null || heard < 0 ? null : heard % lengthBeats;
-  const activeBeat = pos === null ? null : score.beats.findIndex((b) => pos * TICKS_PER_QUARTER >= b.start && pos * TICKS_PER_QUARTER < b.start + b.ticks);
   const events = useMemo(() => texEvents(score, STANDARD), [score]);
+  // Redraw only when the highlighted beat or notes change, not on every frame (see useHeardBeat).
+  const points = useMemo(() => playheadPoints(score, events, lengthBeats), [score, events, lengthBeats]);
+  const heard = useHeardBeat(engine, playing, (b) => playheadStep(points, lengthBeats, b));
+  const view = playheadView(score, events, heard === null || heard < 0 ? null : heard % lengthBeats);
   const marks: FretMark[] = useMemo(() => {
     const seen = new Map<string, FretMark>();
     for (const e of events) {
@@ -181,7 +183,7 @@ function LickDetail({ base }: { base: Lick }) {
     }
     return [...seen.values()];
   }, [events, keyPc, pcs]);
-  const active = pos === null ? [] : events.filter((e) => pos >= e.onsetBeat && pos < e.onsetBeat + e.durationBeats).map((e) => ({ string: e.string, fret: e.fret, tone: 'play' as const }));
+  const active = view.sounding.map((n) => ({ ...n, tone: 'play' as const }));
   const maxFret = Math.max(12, ...events.map((e) => e.fret + 2));
   const minFret = Math.max(0, Math.min(...events.map((e) => e.fret)) - 2);
 
@@ -242,7 +244,7 @@ function LickDetail({ base }: { base: Lick }) {
         subtitle={`In the style of ${lick.artist} · ${lick.key} ${scaleDef?.name ?? lick.scale} over ${lick.chord} · ${lick.bpm} BPM · ${lick.timeSignature}`}
         actions={<PlayButton playing={playing} onPlay={() => void start()} onStop={stop} size="md" />}
       >
-        <TabView score={score} tuning={STANDARD} keyPc={keyPc} scalePcs={pcs} activeBeat={activeBeat === -1 ? null : activeBeat} label={`Tab for ${lick.title}`} />
+        <TabView score={score} tuning={STANDARD} keyPc={keyPc} scalePcs={pcs} activeBeat={view.activeBeat} label={`Tab for ${lick.title}`} />
         <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
           <Field label="Speed" hint={`${bpm} BPM. Tempo changes never change pitch.`}>
             {(id) => <Slider id={id} label="Playback speed in percent" value={speed} min={25} max={150} step={5} onChange={setSpeed} format={(v) => `${v}%`} />}

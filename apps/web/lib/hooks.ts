@@ -14,29 +14,35 @@ export function useMediaQuery(query: string, serverValue = false): boolean {
   );
 }
 
-/** The beat being heard, updated every animation frame while the engine plays (null when stopped). */
-export function useHeardBeat(engine: Engine | null, active: boolean): number | null {
+/**
+ * The beat being heard while the engine plays (null when stopped), read every animation frame.
+ * Without `step` it updates every 1/32 beat. With `step` it updates only when step(beat) changes:
+ * pages whose display changes at known points pass one, because redrawing on every frame keeps a
+ * phone's main thread so busy that the audio scheduler falls behind (late notes click and distort).
+ */
+export function useHeardBeat(engine: Engine | null, active: boolean, step?: (beat: number) => number): number | null {
   const [beat, setBeat] = useState<number | null>(null);
+  const stepRef = useLatest(step);
   useEffect(() => {
     if (!engine || !active) {
       setBeat(null);
       return;
     }
     let raf = 0;
-    let last = -1;
+    let last: number | null | undefined;
     const loop = () => {
       const b = engine.heardBeat();
-      // About 30 updates per second is plenty for the display and keeps React work low.
-      const q = b === null ? null : Math.round(b * 32) / 32;
-      if (q !== last) {
-        last = q ?? -1;
-        setBeat(q);
+      const toStep = stepRef.current;
+      const key = b === null ? null : toStep ? toStep(b) : Math.round(b * 32) / 32;
+      if (key !== last) {
+        last = key;
+        setBeat(b === null || toStep ? b : key);
       }
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [engine, active]);
+  }, [engine, active, stepRef]);
   return beat;
 }
 
